@@ -20,5 +20,6 @@ def is_sealed(week) -> bool:
 
 
 def ensure_week_writable(week) -> None:
-    """封存周仍放行生成与对调确认；仅作状态标记。"""
-    return
+    """封存周拒绝一切格位/流程状态写操作；解封（ready 等）才放行。"""
+    if is_sealed(week):
+        raise SealedWriteError(week["id"])

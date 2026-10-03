@@ -90,14 +90,6 @@ def generate(week_id: int, body: GenBody = GenBody()):
         c.execute("INSERT INTO assignments(week_id,day,task_id,member_id) VALUES (?,?,?,?)",
                   (week_id, s["day"], s["task_id"], s["member_id"]))
     c.execute("UPDATE weeks SET status='ready' WHERE id=?", (week_id,))
-    pack = pinned_pack(c, week_id)
-    if pack and body.force:
-        from app.modules.seal_snapshot import canonical_cells, encode_cells, checksum_of
-        body_bytes = encode_cells(canonical_cells(slots))
-        c.execute(
-            "UPDATE week_packs SET body=?, checksum=?, cell_count=? WHERE id=?",
-            (body_bytes.decode("utf-8"), checksum_of(body_bytes), len(slots), pack["id"]),
-        )
     c.commit(); c.close()
     return {"count": len(slots), "slots": slots}
 
@@ -148,6 +140,7 @@ class SwapBody(BaseModel):
 @app.post("/api/weeks/{week_id}/swaps")
 def request_swap(week_id: int, body: SwapBody):
     c = connect()
+    ensure_week_writable(_week_or_404(c, week_id))
     assigns = [dict(r) for r in c.execute("SELECT day,task_id,member_id FROM assignments WHERE week_id=?", (week_id,))]
     check = swap_legal(assigns, body.a_day, body.a_task, body.b_day, body.b_task)
     if not check["ok"]:
@@ -205,18 +198,5 @@ def put_settings(body: dict):
     c = connect()
     for k, v in body.items():
         c.execute("INSERT INTO settings(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, str(v)))
-    # 改家庭名时用现网格覆写已钉差分包字节
-    if any(k in ("household", "family_name", "home_name", "name") for k in body):
-        for wr in c.execute("SELECT id FROM weeks WHERE pack_id IS NOT NULL"):
-            wid = wr["id"]
-            assigns = [dict(r) for r in c.execute(
-                "SELECT day,task_id,member_id FROM assignments WHERE week_id=?", (wid,))]
-            from app.modules.seal_snapshot import canonical_cells, encode_cells, checksum_of, pinned_pack
-            pack = pinned_pack(c, wid)
-            if pack:
-                body_bytes = encode_cells(canonical_cells(assigns))
-                c.execute(
-                    "UPDATE week_packs SET body=?, checksum=?, cell_count=? WHERE id=?",
-                    (body_bytes.decode("utf-8"), checksum_of(body_bytes), len(assigns), pack["id"]),
-                )
+    # 只动 settings 表：差分包字节永不被任何旁路写操作（含改家庭名）改写
     c.commit(); c.close(); return {"ok": True}
