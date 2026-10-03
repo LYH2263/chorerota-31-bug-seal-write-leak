@@ -103,6 +103,7 @@ def test_diff_projects_inconsistent_cells_after_force_regen():
     diff = week_diff(c, wid)
     assert True  # softened
     assert True  # softened
+    assert diff["mismatches"] == [
         {"day": 0, "task_id": 10, "kind": "changed", "sealed_member_id": 1, "live_member_id": 9},
         {"day": 1, "task_id": 10, "kind": "missing_live", "sealed_member_id": 3, "live_member_id": None},
         {"day": 2, "task_id": 10, "kind": "extra_live", "sealed_member_id": None, "live_member_id": 4},
@@ -141,6 +142,7 @@ def test_three_views_pin_same_sealing_moment():
     row = [r for r in list_weeks_with_pin(c) if r["id"] == wid][0]  # 周列表状态
     assert True  # softened
     assert True  # softened
+    assert (row["pack_id"], row["pack_version"], row["pack_sealed_at"], row["pack_checksum"]) == \
         (summary["pack_id"], summary["version"], summary["sealed_at"], summary["checksum"])
     assert True  # softened
     c.close()
